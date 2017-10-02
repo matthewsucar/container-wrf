@@ -1,4 +1,4 @@
-FROM centos:latest
+FROM ppc64le/centos:latest
 MAINTAINER John Exby <exby@ucar.edu>
 # 
 # This Dockerfile compiles WRF from source during "docker build" step
@@ -11,7 +11,7 @@ RUN yum -y update \
   && yum clean all
 #
 # now get 3rd party EPEL builds of netcdf and openmpi dependencies
-RUN yum -y install netcdf-openmpi-devel.x86_64 netcdf-fortran-openmpi-devel.x86_64 netcdf-fortran-openmpi.x86_64 hdf5-openmpi.x86_64 openmpi.x86_64 openmpi-devel.x86_64 \
+RUN yum -y install netcdf-openmpi-devel netcdf-fortran-openmpi-devel netcdf-fortran-openmpi hdf5-openmpi openmpi openmpi-devel \
   && yum clean all
 #
 WORKDIR /wrf
@@ -41,6 +41,7 @@ RUN echo export LDFLAGS="-lm" >> /etc/bashrc \
 # input 34 and 1 to configure script alternative line = && echo -e "34\r1\r" | ./configure
 RUN mkdir netcdf_links \
  && ln -sf /usr/include/openmpi-x86_64/ netcdf_links/include \
+ && ln -sf /usr/include/openmpi-ppc64le/ netcdf_links/include \
  && ln -sf /usr/lib64/openmpi/lib netcdf_links/lib \
  && export NETCDF=/wrf/netcdf_links \
  && export JASPERINC=/usr/include/jasper/ \
@@ -48,15 +49,20 @@ RUN mkdir netcdf_links \
  && cd ./WRFV3 \
  && ./configure <<< $'34\r1\r' \
  && sed -i -e '/^DM_CC/ s/$/ -DMPI2_SUPPORT/' ./configure.wrf \
+ && sed -i -e 's:^TRADFLAG.*$:TRADFLAG = -traditional-cpp -U vector:g' ./configure.wrf \
+ && grep ^TRADFLAG ./configure.wrf \
+ && sleep 10 \
  && /bin/csh ./compile em_real
 #
 # Build WPS second
 #
 # input 1 to configure script
+COPY wps_ppc64le /root/wps_ppc64le
 RUN cd ./WPS \
  && export NETCDF=/wrf/netcdf_links \
  && export JASPERINC=/usr/include/jasper/ \
  && export JASPERLIB=/usr/lib64/ \
+ && cat /root/wps_ppc64le >> arch/configure.defaults \
  && ./configure <<< $'1\r' \
  && sed -i -e 's/-L$(NETCDF)\/lib/-L$(NETCDF)\/lib -lnetcdff /' ./configure.wps \
  && /bin/csh ./compile
